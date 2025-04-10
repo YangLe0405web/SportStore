@@ -92,9 +92,16 @@ include("Header.php");
 
       </ul>
     </li><!-- End Forms Nav -->
+    <li class="nav-item">
+      <a class="nav-link collapsed" href="?thamso=khachhang">
+        <i class="bi bi-person-fill"></i> <!-- Biểu tượng đã thay đổi -->
+        <span>Khách Hàng</span>
+      </a>
+    </li><!-- End Customer Page Nav -->
+
       <?php }
     ?>
-
+     
 
     <li class="nav-item">
       <a class="nav-link collapsed" data-bs-target="#charts-nav" data-bs-toggle="collapse" href="#">
@@ -124,7 +131,6 @@ include("Header.php");
         <span>Thống kê</span>
       </a>
     </li><!-- End F.A.Q Page Nav -->
-
   </ul>
 
 </aside><!-- End Sidebar-->

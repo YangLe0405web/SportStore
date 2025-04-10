@@ -44,6 +44,9 @@
 		case "thongke":
             include("./Function/Statistical/Statistical_Page.php");     
 		break;
+		case "khachhang":
+            include("./Function/Customer/admin_khachhang.php");     
+		break;
 		default:
 			include("./Function/Manager/Members.php");  
 		
