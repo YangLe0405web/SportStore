@@ -4,12 +4,40 @@ include("./Function/Sup/Success.php");
 include("./Function/Statistical/Handle.php");
 include_once './Connect_DB/connect.php';
 include_once './Connect_DB/connect_ex.php';
+
+// Xử lý dữ liệu cho biểu đồ và modal
+$thongke_query = "
+  SELECT 
+    DATE_FORMAT(dh.NgayDat, '%Y-%m') AS thang,
+    COUNT(DISTINCT dh.SoDH) AS donhang,
+    SUM(ct.SoLuong * ct.DonGia) AS tienban,
+    SUM(ct.SoLuong) AS soluong
+  FROM dondathang dh
+  JOIN chitietdathang ct ON dh.SoDH = ct.SoDH
+  GROUP BY thang
+  ORDER BY thang ASC
+";
+
+$thongke_result = mysqli_query($conn, $thongke_query);
+
+$chart_array = [];
+$result_detail = [];
+
+if ($thongke_result && mysqli_num_rows($thongke_result) > 0) {
+  while ($row = mysqli_fetch_assoc($thongke_result)) {
+    $chart_array[] = [
+      'thang' => $row['thang'],
+      'doanhthu' => $row['tienban']
+    ];
+    $result_detail[] = $row;
+  }
+}
+
+$chart_data = json_encode($chart_array);
 ?>
 
-<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/morris.js/0.5.1/morris.css">
-<script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.0/jquery.min.js"></script>
-<script src="//cdnjs.cloudflare.com/ajax/libs/raphael/2.1.0/raphael-min.js"></script>
-<script src="//cdnjs.cloudflare.com/ajax/libs/morris.js/0.5.1/morris.min.js"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <div class="container mt-4">
   <h1>Thống kê</h1>
@@ -32,74 +60,68 @@ include_once './Connect_DB/connect_ex.php';
   </form>
 
   <?php
-if (isset($_POST['filter_top5'])) {
+  if (isset($_POST['filter_top5'])) {
     $from = $_POST['from_date'];
     $to = $_POST['to_date'];
 
     $query = "
-        SELECT kh.MaKH, kh.HoTen, SUM(ct.SoLuong * ct.DonGia) AS tong_mua
-        FROM dondathang dh
-        JOIN khachhang kh ON dh.MaKH = kh.MaKH
-        JOIN chitietdathang ct ON dh.SoDH = ct.SoDH
-        WHERE dh.NgayDat BETWEEN '$from' AND '$to'
-        GROUP BY kh.MaKH
-        ORDER BY tong_mua DESC
-        LIMIT 5
+      SELECT kh.MaKH, kh.HoTen, SUM(ct.SoLuong * ct.DonGia) AS tong_mua
+      FROM dondathang dh
+      JOIN khachhang kh ON dh.MaKH = kh.MaKH
+      JOIN chitietdathang ct ON dh.SoDH = ct.SoDH
+      WHERE dh.NgayDat BETWEEN '$from' AND '$to'
+      GROUP BY kh.MaKH
+      ORDER BY tong_mua DESC
+      LIMIT 5
     ";
 
     $result = mysqli_query($conn, $query);
     if (!$result) {
-        die("Lỗi truy vấn SQL (Top 5 KH): " . mysqli_error($conn));
+      die("Lỗi truy vấn SQL (Top 5 KH): " . mysqli_error($conn));
     }
 
     echo "<h3 class='mt-4'>Top 5 khách hàng từ $from đến $to</h3>";
 
-    // Lấy URL hiện tại để truyền vào ?back= (giúp quay lại đúng trang)
     $current_url = urlencode($_SERVER['REQUEST_URI']);
 
     while ($row = mysqli_fetch_assoc($result)) {
-        echo "<div class='card mb-3'><div class='card-body'>";
-        echo "<h5 class='card-title'>" . htmlspecialchars($row['HoTen']) . " - Tổng mua: " . number_format($row['tong_mua']) . "đ</h5>";
+      echo "<div class='card mb-3'><div class='card-body'>";
+      echo "<h5 class='card-title'>" . htmlspecialchars($row['HoTen']) . " - Tổng mua: " . number_format($row['tong_mua']) . "đ</h5>";
 
-        $makh = $row['MaKH'];
+      $makh = $row['MaKH'];
 
-        $donhang = mysqli_query($conn, "
-            SELECT dh.SoDH, dh.NgayDat, SUM(ct.SoLuong * ct.DonGia) AS tongdon
-            FROM dondathang dh
-            JOIN chitietdathang ct ON dh.SoDH = ct.SoDH
-            WHERE dh.MaKH = '$makh' AND dh.NgayDat BETWEEN '$from' AND '$to'
-            GROUP BY dh.SoDH
-        ");
+      $donhang = mysqli_query($conn, "
+        SELECT dh.SoDH, dh.NgayDat, SUM(ct.SoLuong * ct.DonGia) AS tongdon
+        FROM dondathang dh
+        JOIN chitietdathang ct ON dh.SoDH = ct.SoDH
+        WHERE dh.MaKH = '$makh' AND dh.NgayDat BETWEEN '$from' AND '$to'
+        GROUP BY dh.SoDH
+      ");
 
-        if (!$donhang) {
-            die("Lỗi truy vấn SQL (Đơn hàng KH): " . mysqli_error($conn));
-        }
+      if (!$donhang) {
+        die("Lỗi truy vấn SQL (Đơn hàng KH): " . mysqli_error($conn));
+      }
 
-        echo "<ul>";
-        while ($dh = mysqli_fetch_assoc($donhang)) {
-            $sodh = htmlspecialchars($dh['SoDH']);
-            $ngaydat = htmlspecialchars($dh['NgayDat']);
-            $tongdon = number_format($dh['tongdon']) . "đ";
-
-            // Thêm ?back= để mở tab mới và vẫn quay lại được
-            echo "<li>Đơn hàng #$sodh - $tongdon - $ngaydat 
-                  <a href=\"./Function/Statistical/order_view.php?sodh=$sodh&back=$current_url\" 
-                     target=\"_blank\" class=\"ms-2\">Xem chi tiết</a></li>";
-        }
-        echo "</ul></div></div>";
+      echo "<ul>";
+      while ($dh = mysqli_fetch_assoc($donhang)) {
+        $sodh = htmlspecialchars($dh['SoDH']);
+        $ngaydat = htmlspecialchars($dh['NgayDat']);
+        $tongdon = number_format($dh['tongdon']) . "đ";
+        echo "<li>Đơn hàng #$sodh - $tongdon - $ngaydat 
+              <a href=\"./Function/Statistical/order_view.php?sodh=$sodh&back=$current_url\" 
+                 target=\"_blank\" class=\"ms-2\">Xem chi tiết</a></li>";
+      }
+      echo "</ul></div></div>";
     }
-}
-?>
-
+  }
+  ?>
 
   <!-- BIỂU ĐỒ + MODAL -->
   <div class="container-fluid">
-    <!-- Vùng biểu đồ cần ẩn/hiện -->
     <div id="chart-container">
-      <div id="chart"></div>
+      <canvas id="myHorizontalBarChart" width="400" height="300"></canvas>
     </div>
 
-    <!-- Nút mở modal -->
     <button type="button" class="btn btn-danger mt-3" data-bs-toggle="modal" data-bs-target="#ModalDelete">
       Chi tiết
     </button>
@@ -123,8 +145,8 @@ if (isset($_POST['filter_top5'])) {
                 </tr>
               </thead>
               <tbody>
-                <?php if (isset($result_detail)) {
-                  while ($row = mysqli_fetch_array($result_detail)) { ?>
+                <?php if (!empty($result_detail)) {
+                  foreach ($result_detail as $row) { ?>
                     <tr>
                       <td><?php echo htmlspecialchars($row["thang"]) ?></td>
                       <td><?php echo htmlspecialchars($row["donhang"]) ?></td>
@@ -148,31 +170,57 @@ if (isset($_POST['filter_top5'])) {
   </div>
 </div>
 
-<!-- Script vẽ biểu đồ + ẩn hiện -->
+<!-- Script Chart.js -->
 <script>
-  // Vẽ biểu đồ Morris
-  Morris.Bar({
-    element: 'chart',
-    data: [<?php echo $chart_data; ?>],
-    xkey: 'thang',
-    ykeys: ['doanhthu'],
-    labels: ['Doanh thu'],
-    hideHover: 'auto',
-    stacked: true
+  const chartDataRaw = <?php echo $chart_data; ?>;
+  const labels = chartDataRaw.map(item => item.thang);
+  const data = chartDataRaw.map(item => item.doanhthu);
+
+  const ctx = document.getElementById('myHorizontalBarChart').getContext('2d');
+  const myChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Doanh thu',
+        data: data,
+        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+        borderColor: 'rgba(75, 192, 192, 1)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: {
+        legend: {
+          position: 'top',
+        },
+        title: {
+          display: true,
+          text: 'Biểu đồ doanh thu theo tháng'
+        }
+      },
+      scales: {
+        x: {
+          beginAtZero: true
+        }
+      }
+    }
   });
 
-  // Khi mở modal -> ẩn biểu đồ
+  // Ẩn biểu đồ khi mở modal
   $('#ModalDelete').on('shown.bs.modal', function () {
     $('#chart-container').hide();
   });
 
-  // Khi đóng modal -> hiện biểu đồ lại
+  // Hiện lại khi đóng modal
   $('#ModalDelete').on('hidden.bs.modal', function () {
     $('#chart-container').show();
   });
 </script>
 
-<!-- Style cho bảng -->
+<!-- Style -->
 <style>
   #data-table1 thead th {
     background: black;
